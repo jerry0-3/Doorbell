@@ -1,0 +1,12 @@
+.venv/
+__pycache__/
+
+ntfy_cache
+
+test.py
+docker-compose.yml
+doorbell_control.py
+doorbell_control.txt
+lin_phone.py
+lin_phone_old.py
+doorbell/test.py
