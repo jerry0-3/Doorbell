@@ -1,0 +1,14 @@
+[Unit]
+Description=Doorbell and Gate Automation Service
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/home/greg/Brama
+ExecStart=/usr/bin/python3 /home/greg/Brama/main.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
