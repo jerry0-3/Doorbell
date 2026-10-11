@@ -14,7 +14,7 @@ import threading
 import psutil
 
 from config import APP_LOG_PATH, LINPHONE_LOG_PATH
-from hardware import set_gate_relay, set_led_state
+from hardware import init_gpio, cleanup_gpio
 from lin_phone import run_doorbell_controller
 from server import run_http_server
 
@@ -43,14 +43,11 @@ def is_already_running(script_name: str) -> bool:
 
 
 def cleanup() -> None:
-    """Przywraca bezpieczny stan przekaźników i zamyka otwarte deskryptory."""
-    logger.info("Zamykanie aplikacji - czyszczenie zasobów...")
-    # noinspection unresolved-references
+    """Zwalnia linie GPIO, zamyka deskryptory i kończy logowanie."""
+    logger.info("Zamykanie aplikacji - zwalnianie zasobów...")
+    cleanup_gpio()
     if log_file_handle and not log_file_handle.closed:
-        # noinspection unresolved-references
         log_file_handle.close()
-    set_gate_relay(False)
-    set_led_state(False)
     logging.shutdown()
 
 
@@ -71,9 +68,12 @@ def main() -> None:
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
 
-    # Inicjalizacja stanu sprzętu
-    set_gate_relay(False)
-    set_led_state(True)
+    # Inicjalizacja sprzętowa GPIO v2
+    try:
+        init_gpio()
+    except Exception as err:
+        print(f"Nie udało się zainicjalizować GPIO: {err}")
+        sys.exit(1)
 
     # Otwarcie pliku logów linphone
     if not os.path.isfile(LINPHONE_LOG_PATH):

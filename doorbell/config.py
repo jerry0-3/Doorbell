@@ -16,10 +16,13 @@ DEFAULT_DIAL_NUMBER = "84"
 LINPHONE_LOG_PATH = "/home/greg/linph.log"
 APP_LOG_PATH = "/var/log/gregac/vbram_log"
 
-# Konfiguracja pinów GPIO (sysfs)
-BUTTON_GPIO_PATH = "/sys/class/gpio/gpio13/value"
-LED_GPIO_PATH = "/sys/class/gpio/gpio15/value"
-GATE_GPIO_PATH = "/sys/class/gpio/gpio16/value"
+# Konfiguracja nowego libgpiod v2 (/dev/gpiochipX)
+GPIO_CHIP_PATH = "/dev/gpiochip1"
+GPIO_CONSUMER_NAME = "gregbl0"
+
+LINE_BUTTON = 13   # Przycisk dzwonka (INPUT)
+LINE_LED = 15      # Dioda kontrolna (OUTPUT, active-low)
+LINE_GATE = 16     # Przekaźnik bramy (OUTPUT)
 
 # Ścieżki do plików audio
 SOUND_SILENCE = "/home/greg/Brama/cisza.wav"
