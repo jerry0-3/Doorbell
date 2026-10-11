@@ -1,12 +1,14 @@
 [Unit]
 Description=Doorbell and Gate Automation Service
-After=network.target
+After=network-online.target
+Wants=network-online.target
 
 [Service]
 Type=simple
-User=root
+User=greg
 WorkingDirectory=/home/greg/Brama
-ExecStart=/usr/bin/python3 /home/greg/Brama/main.py
+ExecStart=/home/greg/Brama/venv/bin/python /home/greg/Brama/main.py
+Environment=PYTHONUNBUFFERED=1
 Restart=always
 RestartSec=5
 
