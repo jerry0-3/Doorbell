@@ -12,7 +12,7 @@ SERVER_PORT = 6000
 TOKEN_TTL_SECONDS = 300.0  # Token ważny 5 minut od zadzwonienia
 
 # Konfiguracja SIP / Linphone
-DEFAULT_DIAL_NUMBER = "84"
+DEFAULT_DIAL_NUMBER = "42"
 LINPHONE_LOG_PATH = "/home/greg/linph.log"
 APP_LOG_PATH = "/var/log/gregac/vbram_log"
 

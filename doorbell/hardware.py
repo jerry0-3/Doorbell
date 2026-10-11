@@ -7,7 +7,7 @@ import subprocess
 import threading
 from typing import Optional
 import gpiod
-from gpiod.line import Direction, Value
+from gpiod.line import Bias, Direction, Value
 
 from config import (
     GPIO_CHIP_PATH,
@@ -43,7 +43,9 @@ def init_gpio() -> None:
                 consumer=GPIO_CONSUMER_NAME,
                 config={
                     LINE_BUTTON: gpiod.LineSettings(
-                        direction=Direction.INPUT
+                        direction=Direction.INPUT,
+                        bias=Bias.PULL_UP,
+                        active_low=True
                     ),
                     LINE_GATE: gpiod.LineSettings(
                         direction=Direction.OUTPUT,
