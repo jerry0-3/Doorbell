@@ -7,7 +7,7 @@ Wants=network-online.target
 Type=simple
 User=greg
 WorkingDirectory=/home/greg/Brama
-ExecStart=/home/greg/Brama/venv/bin/python /home/greg/Brama/main.py
+ExecStart=/home/greg/Brama/venv/bin/python /home/greg/Brama/doorbell/main.py
 Environment=PYTHONUNBUFFERED=1
 Restart=always
 RestartSec=5
