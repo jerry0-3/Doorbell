@@ -15,17 +15,12 @@ import time
 from collections import deque
 
 # noinspection unused-imports
-from config import (
-    DEFAULT_DIAL_NUMBER,
-    SOUND_CONFIRM,
-    SOUND_GATE_OPEN,
-    SOUND_SILENCE
-)
+from config import settings
 from hardware import (
     open_gate,
     play_audio,
     read_button_state,
-    set_led_state
+    update_normal_blue_blink
 )
 from notifier import send_doorbell_notification
 
@@ -194,13 +189,13 @@ def run_doorbell_controller(log_file_handle) -> None:
             clear_dtmf_buffer()
             if not is_linphone_on_hook():
                 logger.info("Odebrano poprawny kod DTMF podczas rozmowy. Otwieranie bramy...")
-                play_audio(SOUND_SILENCE)
-                play_audio(SOUND_CONFIRM)
+                play_audio(settings.sounds.silence)
+                play_audio(settings.sounds.confirm)
 
                 set_linphone_mute(True)
                 open_gate()
-                play_audio(SOUND_SILENCE)
-                play_audio(SOUND_GATE_OPEN)
+                play_audio(settings.sounds.silence)
+                play_audio(settings.sounds.gate_open)
                 set_linphone_mute(False)
             else:
                 logger.warning("Wykryto kod DTMF, ale brak aktywnej sesji SIP (on-hook).")
@@ -211,9 +206,6 @@ def run_doorbell_controller(log_file_handle) -> None:
         last_loop_time = time.time()
 
         # Dioda kontrolna LED — krótkie mignięcie co sekundę
-        if (last_loop_time - int(last_loop_time)) < 0.07:
-            set_led_state(True)
-        else:
-            set_led_state(False)
+        update_normal_blue_blink((last_loop_time - int(last_loop_time)) < 0.07)
 
         previous_button_state = current_button_state

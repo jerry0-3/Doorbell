@@ -1,0 +1,59 @@
+{
+  "app_log_path": "/var/log/gregac/vbram_log",
+  "gate_hold_time_sec": 5.0,
+  "token_ttl_seconds": 300.0,
+  "http_server": {
+    "ip": "10.47.34.126",
+    "port": 6000
+  },
+  "notification": {
+    "broker_url": "http://10.47.34.96:8080",
+    "topic": "doorbell_control",
+    "priority": 5
+  },
+  "sip": {
+    "default_dial_number": "84",
+    "linphone_log_path": "/home/greg/linph.log",
+    "magic_dtmf_regex": "9#0$",
+    "max_inter_digit_sec": 3.0
+  },
+  "gpio": {
+    "chip_path": "/dev/gpiochip1",
+    "consumer_name": "gregbl0",
+    "line_button": 13,
+    "line_led_red": 14,
+    "line_led_blue": 15,
+    "line_gate": 16,
+    "line_led_green": 17,
+    "line_buzzer": 18,
+    "buzzer_active_low": false
+  },
+  "sounds": {
+    "silence": "/home/greg/Brama/cisza.wav",
+    "confirm": "/home/greg/Brama/pi-pi4.5p.wav",
+    "reject": "/home/greg/Brama/tuu700-550p.wav",
+    "gate_open": "/home/greg/Brama/BramaOtw.wav"
+  },
+  "rfid": {
+    "enabled": true,
+    "serial_port": "/dev/ttyS1",
+    "baudrate": 9600,
+    "auth_server_ip": "10.47.34.46",
+    "auth_server_port": 5005,
+    "socket_timeout_sec": 4.0,
+    "max_time_drift_sec": 12.0,
+    "aes_key_pem_path": "/home/greg/Brama/gate_key.pem"
+  },
+  "mailbox": {
+    "enabled": false,
+    "line_sensor": 19,
+    "line_led": 20,
+    "sensor_active_low": true,
+    "led_active_low": true,
+    "debounce_sec": 2.0,
+    "topic": "mailbox_alerts",
+    "priority": 3,
+    "title": "Skrzynka na listy",
+    "message": "W skrzynce znajduje się nowa korespondencja."
+  }
+}

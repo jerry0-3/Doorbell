@@ -7,6 +7,14 @@ test.py
 docker-compose.yml
 doorbell_control.py
 doorbell_control.txt
-lin_phone.py
+lin_phone_test.py
 lin_phone_old.py
-doorbell/test.py
+gate_client/test.py
+
+acsrv.py
+brama-cli.py
+
+*.pem
+
+*.local.json
+*.log

@@ -7,7 +7,7 @@ import threading
 import time
 from typing import Dict
 
-from config import TOKEN_TTL_SECONDS
+from config import settings
 
 _tokens_lock = threading.Lock()
 # Słownik: {token: czas_wygasniecia_unix}
@@ -16,7 +16,7 @@ _active_tokens: Dict[str, float] = {}
 
 def register_token(token: str) -> None:
     """Rejestruje nowy unikalny token z czasem wygaśnięcia."""
-    expire_at = time.time() + TOKEN_TTL_SECONDS
+    expire_at = time.time() + settings.token_ttl_seconds
     with _tokens_lock:
         # Usuwamy przedawnione tokeny przy okazji dodawania nowego
         now = time.time()

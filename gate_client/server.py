@@ -4,7 +4,7 @@ Moduł serwera HTTP Flask do odbierania autoryzowanych decyzji z powiadomień.
 
 import logging
 from flask import Flask, jsonify, request
-from config import SERVER_PORT, DEFAULT_DIAL_NUMBER
+from config import settings
 from hardware import open_gate
 from lin_phone import dial_sip_number, is_linphone_on_hook
 from token_store import consume_token, validate_token
@@ -44,7 +44,7 @@ def receive_decision():
 
         # Jeśli brak parametru lub pusty string, używamy numeru domyślnego
         if not target_number:
-            target_number = DEFAULT_DIAL_NUMBER
+            target_number = settings.sip.default_dial_number
 
         print(f"Próba połączenia Linphone na numer: {target_number}")
         if is_linphone_on_hook():
@@ -80,4 +80,4 @@ def run_http_server() -> None:
     log.setLevel(logging.ERROR)
 
     # threaded = False na 1 rdzeniu radzi sobie znakomicie z 1 zapytaniem co parę minut
-    app.run(host='0.0.0.0', port=SERVER_PORT, threaded=True, debug=False, use_reloader=False)
+    app.run(host='0.0.0.0', port=settings.http_server.port, threaded=True, debug=False, use_reloader=False)

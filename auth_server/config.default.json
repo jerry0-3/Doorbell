@@ -1,0 +1,18 @@
+{
+  "log_path": "/var/log/gregac/acsrv_log",
+  "bind_host": "0.0.0.0",
+  "bind_port": 5005,
+  "client_timeout_sec": 5.0,
+  "max_time_drift_sec": 12.0,
+  "default_aes_key_pem_path": "/home/acuser/acsrv/default_gate_key.pem",
+  "gates": {
+    "10.47.34.126": {
+      "name": "Domofon Piastunkowo",
+      "enabled": true,
+      "aes_key_pem_path": "/home/acuser/acsrv/piastunkowo_key.pem"
+    }
+  },
+  "allowed_tags": [
+    "000000000002"
+  ]
+}

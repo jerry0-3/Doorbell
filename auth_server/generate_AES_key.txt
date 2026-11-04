@@ -1,0 +1,3 @@
+# To generate an AES-256 key use the bellow command
+openssl rand -base64 32 | awk 'BEGIN{print "-----BEGIN AES-256 KEY-----"} {print} END{print "-----END AES-256 KEY-----"}' > gate_default.pem
+chmod 600 gate_default.pem
