@@ -8,8 +8,7 @@
   "gates": {
     "10.47.34.126": {
       "name": "Domofon Piastunkowo",
-      "enabled": true,
-      "aes_key_pem_path": "/home/acuser/acsrv/piastunkowo_key.pem"
+      "enabled": false
     }
   },
   "allowed_tags": {
