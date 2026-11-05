@@ -12,7 +12,8 @@
       "aes_key_pem_path": "/home/acuser/acsrv/piastunkowo_key.pem"
     }
   },
-  "allowed_tags": [
-    "000000000002"
-  ]
+  "allowed_tags": {
+    "00001234ABCD": "Default 1 (niebieski brelok)",
+    "010203040506": "Default 2"
+  }
 }

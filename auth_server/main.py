@@ -99,11 +99,12 @@ class GateAuthRequestHandler(socketserver.BaseRequestHandler):
             seed_hex, tag_hex = parsed
 
             # 4. Sprawdzenie uprawnień karty RFID (w pamięci RAM, czas O(1))
-            if auth_manager.is_tag_authorized(tag_hex, gate_cfg):
-                logger.info(f"[{gate_cfg.name} ({client_ip})] Przyznano dostęp dla karty: {tag_hex}")
+            owner = auth_manager.get_tag_owner(tag_hex, gate_cfg)
+            if owner is not None:
+                logger.info(f"[{gate_cfg.name} ({client_ip})] Przyznano dostęp: {tag_hex} ({owner})")
                 status_code = ACCESS_GRANTED_CODE
             else:
-                logger.info(f"[{gate_cfg.name} ({client_ip})] Odmowa dostępu dla karty: {tag_hex}")
+                logger.info(f"[{gate_cfg.name} ({client_ip})] Odmowa dostępu dla nieznanej karty: {tag_hex}")
                 status_code = ACCESS_DENIED_CODE
 
             # 5. Budowa, zaszyfrowanie i odesłanie odpowiedzi: [8B SEED][12B STATUS][14B CZAS]
