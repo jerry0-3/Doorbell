@@ -21,7 +21,7 @@ from datetime import datetime
 
 import psutil
 
-from auth_server.config import auth_manager
+from config import auth_manager
 from common.crypto import (
     ACCESS_DENIED_CODE,
     ACCESS_GRANTED_CODE,

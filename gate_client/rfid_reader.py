@@ -18,13 +18,13 @@ from common.crypto import (
     ENCRYPTED_PACKET_SIZE,
     parse_and_validate_frame
 )
-from gate_client.config import settings
-from gate_client.hardware import (
+from config import settings
+from hardware import (
     set_rfid_waiting_state,
     signal_rfid_accepted,
     signal_rfid_rejected
 )
-from gate_client.lin_phone import set_linphone_mute
+from lin_phone import set_linphone_mute
 
 logger = logging.getLogger("vbram_log")
 

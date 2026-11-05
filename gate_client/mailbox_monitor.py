@@ -7,9 +7,9 @@ i wysyła powiadomienie. Po opróżnieniu skrzynki gasi diodę.
 import logging
 import time
 
-from gate_client.config import settings
-from gate_client.hardware import read_mailbox_sensor, set_mailbox_led
-from gate_client.notifier import send_mailbox_notification
+from config import settings
+from hardware import read_mailbox_sensor, set_mailbox_led
+from notifier import send_mailbox_notification
 
 logger = logging.getLogger("vbram_log")
 

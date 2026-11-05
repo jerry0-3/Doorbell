@@ -16,12 +16,12 @@ import threading
 
 import psutil
 
-from gate_client.config import settings
-from gate_client.hardware import cleanup_gpio, init_gpio
-from gate_client.lin_phone import run_doorbell_controller
-from gate_client.rfid_reader import run_rfid_reader_loop
-from gate_client.mailbox_monitor import run_mailbox_monitor_loop
-from gate_client.server import run_http_server
+from config import settings
+from hardware import cleanup_gpio, init_gpio
+from lin_phone import run_doorbell_controller
+from rfid_reader import run_rfid_reader_loop
+from mailbox_monitor import run_mailbox_monitor_loop
+from server import run_http_server
 
 logging.basicConfig(
     format="%(asctime)-15s %(levelname)s: %(message)s",

@@ -9,8 +9,8 @@ from typing import Any, Dict, List, Optional
 
 import requests
 
-from gate_client.config import settings
-from gate_client.token_store import register_token
+from config import settings
+from token_store import register_token
 
 logger = logging.getLogger("vbram_log")
 

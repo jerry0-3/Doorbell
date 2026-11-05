@@ -16,7 +16,7 @@ from typing import Optional, cast
 import gpiod
 from gpiod.line import Bias, Direction, Value
 
-from gate_client.config import settings
+from config import settings
 
 logger = logging.getLogger("vbram_log")
 
