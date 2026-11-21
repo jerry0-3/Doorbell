@@ -115,6 +115,7 @@ def run_rfid_reader_loop() -> None:
     # Inicjalizacja zmiennych filtrujących powtórne odczyty tej samej karty
     last_tag_hex: Optional[str] = None
     last_tag_time: float = 0.0
+    loaded_pem_path = rfid_cfg.aes_key_pem_path
 
     while True:
         try:
@@ -146,7 +147,7 @@ def run_rfid_reader_loop() -> None:
                         logger.info(f"Odczytano kartę RFID: {tag_hex}")
 
                         # Przeładowanie klucza .pem, jeśli jego ścieżka zmieniła się przez hot-reload
-                        latest_pem_path = config_manager.settings.rfid.aes_key_pem_path
+                        latest_pem_path = rfid_cfg.aes_key_pem_path
                         if latest_pem_path != loaded_pem_path:
                             cipher = AESCipher.from_pem_file(latest_pem_path)
                             loaded_pem_path = latest_pem_path
