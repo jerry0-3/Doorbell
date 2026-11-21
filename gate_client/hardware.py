@@ -223,6 +223,8 @@ def open_gate() -> None:
         # noinspection unresolved-references
         _feedback_timer.start()
 
+    play_audio_sequence(cfg.sounds.silence, cfg.sounds.confirm, cfg.sounds.gate_open)
+
 
 def signal_rfid_accepted() -> None:
     """Poprawna karta RFID: świeci niebieska + zielona, otwiera bramę i włącza brzęczyk na 5s."""
