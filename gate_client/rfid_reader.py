@@ -112,6 +112,10 @@ def run_rfid_reader_loop() -> None:
         logger.error(f"Nie udało się wczytać klucza AES z pliku PEM: {err}")
         return
 
+    # Inicjalizacja zmiennych filtrujących powtórne odczyty tej samej karty
+    last_tag_hex: Optional[str] = None
+    last_tag_time: float = 0.0
+
     while True:
         try:
             with serial.Serial(
@@ -131,13 +135,22 @@ def run_rfid_reader_loop() -> None:
                     tag_hex = extract_tag_from_frame(raw_data)
 
                     if tag_hex:
-                        logger.info(f"Odczytano kartę RFID: {tag_hex}")
-
-                        if tag_hex == last_tag_hex and (time.monotonic() - last_tag_time) < 2.0:
+                        now = time.monotonic()
+                        if tag_hex == last_tag_hex and (now - last_tag_time) < 2.0:
                             ser.reset_input_buffer()
                             continue
+
                         last_tag_hex = tag_hex
-                        last_tag_time = time.monotonic()
+                        last_tag_time = now
+
+                        logger.info(f"Odczytano kartę RFID: {tag_hex}")
+
+                        # Przeładowanie klucza .pem, jeśli jego ścieżka zmieniła się przez hot-reload
+                        latest_pem_path = config_manager.settings.rfid.aes_key_pem_path
+                        if latest_pem_path != loaded_pem_path:
+                            cipher = AESCipher.from_pem_file(latest_pem_path)
+                            loaded_pem_path = latest_pem_path
+                            logger.info(f"Przeładowano klucz AES z pliku: {loaded_pem_path}")
 
                         # 1. Dioda niebieska przechodzi w stan ciągłego świecenia
                         set_rfid_waiting_state()
