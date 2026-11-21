@@ -11,6 +11,7 @@ import logging
 import subprocess
 import threading
 import time
+import queue
 from typing import Optional, Dict
 
 import gpiod
@@ -32,6 +33,11 @@ _BIAS_MAP = {
     "pull_down": Bias.PULL_DOWN,
     "disabled": Bias.DISABLED,
 }
+
+# Konfiguracja dla odtwarzania dźwięków
+_audio_queue: queue.Queue = queue.Queue(maxsize=10)
+_audio_worker_lock = threading.Lock()
+_audio_worker_started = False
 
 
 def _make_input_settings(pin_cfg: GpioInputConfig) -> gpiod.LineSettings:
@@ -236,10 +242,7 @@ def signal_rfid_accepted() -> None:
         # noinspection unresolved-references
         _feedback_timer.start()
 
-    play_audio(cfg.sounds.silence)
-    play_audio(cfg.sounds.confirm)
-    time.sleep(0.3)
-    play_audio(cfg.sounds.gate_open)
+    play_audio_sequence(cfg.sounds.silence, cfg.sounds.confirm, cfg.sounds.gate_open)
 
 
 def _beep_three_times() -> None:
@@ -272,8 +275,7 @@ def signal_rfid_rejected() -> None:
     if cfg.gpio.buzzer is not None:
         threading.Thread(target=_beep_three_times, daemon=True).start()
 
-    play_audio(cfg.sounds.silence)
-    play_audio(cfg.sounds.reject)
+    play_audio_sequence(cfg.sounds.silence, cfg.sounds.reject)
 
 
 # =====================================================================
@@ -320,13 +322,57 @@ def set_mailbox_led(has_mail: bool) -> None:
         _set_line_unlocked(mb_cfg.led, has_mail)
 
 
-def play_audio(sound_file: str) -> None:
-    """Odtwarza plik WAV w tle (nieblokująco)."""
+def _audio_worker() -> None:
+    """Wątek w tle odtwarzający kolejne sekwencje WAV ściśle sekwencyjnie."""
+    while True:
+        sound_files = _audio_queue.get()
+        try:
+            for sound_file in sound_files:
+                result = subprocess.run(
+                    ["/usr/bin/aplay", "-q", sound_file],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                    check=False
+                )
+                if result.returncode != 0:
+                    err_msg = (result.stderr or "").strip()
+                    logger.warning(
+                        f"Błąd aplay (kod {result.returncode}) dla '{sound_file}': {err_msg}"
+                    )
+        except Exception as err:
+            logger.error(f"Błąd wątku odtwarzania audio: {err}")
+        finally:
+            _audio_queue.task_done()
+
+
+def _ensure_audio_worker() -> None:
+    """Uruchamia wątek odtwarzania audio przy pierwszym użyciu."""
+    global _audio_worker_started
+    if _audio_worker_started:
+        return
+    with _audio_worker_lock:
+        if not _audio_worker_started:
+            threading.Thread(
+                target=_audio_worker,
+                name="AudioWorkerThread",
+                daemon=True
+            ).start()
+            _audio_worker_started = True
+
+
+def play_audio_sequence(*sound_files: str) -> None:
+    """Kolejkuje sekwencję plików WAV do odtworzenia w tle bez kolizji w ALSA."""
+    files = tuple(f for f in sound_files if f)
+    if not files:
+        return
+    _ensure_audio_worker()
     try:
-        subprocess.Popen(
-            ["/usr/bin/aplay", "-q", sound_file],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL
-        )
-    except Exception as err:
-        logger.error(f"Błąd odtwarzania pliku audio ({sound_file}): {err}")
+        _audio_queue.put_nowait(files)
+    except queue.Full:
+        logger.warning("Kolejka audio jest pełna – pominięto odtworzenie sekwencji.")
+
+
+def play_audio(sound_file: str) -> None:
+    """Zachowuje kompatybilność wsteczną dla pojedynczych wywołań (np. z lin_phone.py)."""
+    play_audio_sequence(sound_file)
