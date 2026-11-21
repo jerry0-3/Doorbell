@@ -90,10 +90,10 @@ def send_doorbell_notification() -> bool:
     ]
 
     return send_notification(
-        topic=notif_cfg.topic,
+        topic=notif_cfg.doorbell_topic,
         title="Dzwonek do drzwi",
         message="Ktoś dzwoni do bramy. Wybierz akcję:",
-        priority=notif_cfg.priority,
+        priority=notif_cfg.doorbell_priority,
         actions=actions
     )
 
