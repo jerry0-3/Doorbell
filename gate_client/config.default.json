@@ -8,8 +8,8 @@
   },
   "notification": {
     "broker_url": "http://10.47.34.96:8080",
-    "topic": "doorbell_control",
-    "priority": 5
+    "doorbell_topic": "doorbell_control",
+    "doorbell_priority": 5
   },
   "sip": {
     "default_dial_number": "84",
@@ -41,9 +41,7 @@
     "buzzer": {
       "line": 18,
       "active_low": false
-    },
-    "line_buzzer": 18,
-    "buzzer_active_low": false
+    }
   },
   "sounds": {
     "silence": "/home/greg/Brama/cisza.wav",
