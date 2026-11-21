@@ -18,7 +18,7 @@ from collections import deque
 from config import config_manager
 from hardware import (
     open_gate,
-    play_audio,
+    play_audio_sequence,
     read_button_state,
     update_normal_blue_blink
 )
@@ -191,13 +191,11 @@ def run_doorbell_controller(log_file_handle) -> None:
             clear_dtmf_buffer()
             if not is_linphone_on_hook():
                 logger.info("Odebrano poprawny kod DTMF podczas rozmowy. Otwieranie bramy...")
-                play_audio(config_manager.settings.sounds.silence)
-                play_audio(config_manager.settings.sounds.confirm)
+                play_audio_sequence(config_manager.settings.sounds.silence, config_manager.settings.sounds.confirm)
 
                 set_linphone_mute(True)
                 open_gate()
-                play_audio(config_manager.settings.sounds.silence)
-                play_audio(config_manager.settings.sounds.gate_open)
+                play_audio_sequence(config_manager.settings.sounds.silence, config_manager.settings.sounds.gate_open)
                 set_linphone_mute(False)
             else:
                 logger.warning("Wykryto kod DTMF, ale brak aktywnej sesji SIP (on-hook).")
