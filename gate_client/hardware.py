@@ -11,12 +11,12 @@ import logging
 import subprocess
 import threading
 import time
-from typing import Optional, cast
+from typing import Optional, Dict
 
 import gpiod
-from gpiod.line import Bias, Direction, Value
+from gpiod.line import Bias, Direction, Value, Drive
 
-from config import settings
+from config import GateAppConfig, GpioInputConfig, GpioOutputConfig, config_manager
 
 logger = logging.getLogger("vbram_log")
 
@@ -27,108 +27,140 @@ _gpio_request: Optional[gpiod.LineRequest] = None
 _blue_led_override = False
 _feedback_timer: Optional[threading.Timer] = None
 
+_BIAS_MAP = {
+    "pull_up": Bias.PULL_UP,
+    "pull_down": Bias.PULL_DOWN,
+    "disabled": Bias.DISABLED,
+}
+
+
+def _make_input_settings(pin_cfg: GpioInputConfig) -> gpiod.LineSettings:
+    """Buduje obiekt LineSettings dla wejścia GPIO."""
+    return gpiod.LineSettings(
+        direction=Direction.INPUT,
+        bias=_BIAS_MAP[pin_cfg.bias],
+        active_low=pin_cfg.active_low
+    )
+
+
+def _make_output_settings(pin_cfg: GpioOutputConfig, initial_active: bool = False) -> gpiod.LineSettings:
+    """
+    Buduje obiekt LineSettings dla wyjścia GPIO w trybie PUSH_PULL.
+    active_low=True oznacza, że stan aktywny (Value.ACTIVE) wymusza fizyczne LOW (0V),
+    a stan nieaktywny (Value.INACTIVE) wymusza fizyczne HIGH (3.3V).
+    """
+    return gpiod.LineSettings(
+        direction=Direction.OUTPUT,
+        drive=Drive.PUSH_PULL,
+        active_low=pin_cfg.active_low,
+        output_value=Value.ACTIVE if initial_active else Value.INACTIVE
+    )
+
+
+def _set_line_unlocked(pin_cfg: Optional[GpioOutputConfig], active: bool) -> None:
+    """Ustawia stan linii (do wywołania wyłącznie wewnątrz sekcji chronionej _gpio_lock)."""
+    if pin_cfg is None or _gpio_request is None:
+        return
+    # noinspection unresolved-references
+    _gpio_request.set_value(pin_cfg.line, Value.ACTIVE if active else Value.INACTIVE)
+
+
+def _open_gpio_lines_unlocked(cfg: GateAppConfig) -> None:
+    """Rezerwuje skonfigurowane linie w kernelu przez libgpiod v2."""
+    global _gpio_request
+    gpio_cfg = cfg.gpio
+    mb_cfg = cfg.mailbox
+
+    line_config: Dict[int, gpiod.LineSettings] = {
+        gpio_cfg.button.line: _make_input_settings(gpio_cfg.button),
+        gpio_cfg.gate.line: _make_output_settings(gpio_cfg.gate, initial_active=False),
+    }
+
+    for out_pin in (gpio_cfg.led_red, gpio_cfg.led_blue, gpio_cfg.led_green, gpio_cfg.buzzer):
+        if out_pin is not None:
+            line_config[out_pin.line] = _make_output_settings(out_pin, initial_active=False)
+
+    if mb_cfg.enabled:
+        line_config[mb_cfg.sensor.line] = _make_input_settings(mb_cfg.sensor)
+        if mb_cfg.led is not None:
+            line_config[mb_cfg.led.line] = _make_output_settings(mb_cfg.led, initial_active=False)
+
+    _gpio_request = gpiod.request_lines(
+        gpio_cfg.chip_path,
+        consumer=gpio_cfg.consumer_name,
+        config=line_config
+    )
+    logger.info(
+        f"Zainicjalizowano GPIO ({gpio_cfg.chip_path}, linie: {sorted(line_config.keys())})."
+    )
+
+
+def _release_gpio_unlocked(cfg: GateAppConfig) -> None:
+    """Gasi wyjścia i zwalnia bieżący uchwyt gpiod."""
+    global _gpio_request
+    if _gpio_request is None:
+        return
+    try:
+        gpio_cfg = cfg.gpio
+        for out_pin in (
+            gpio_cfg.gate,
+            gpio_cfg.led_green,
+            gpio_cfg.led_red,
+            gpio_cfg.led_blue,
+            gpio_cfg.buzzer,
+        ):
+            _set_line_unlocked(out_pin, False)
+        if cfg.mailbox.enabled:
+            _set_line_unlocked(cfg.mailbox.led, False)
+        # noinspection unresolved-references
+        _gpio_request.release()
+    except Exception as err:
+        logger.error(f"Błąd podczas zwalniania GPIO: {err}")
+    finally:
+        _gpio_request = None
+
 
 def init_gpio() -> None:
-    """
-    Rezerwuje linie GPIO w libgpiod v2.
-    Dynamicznie dołącza piny diody zielonej oraz modułu skrzynki na listy,
-    jeśli są włączone w konfiguracji.
-    """
-    global _gpio_request
-    cfg = settings.gpio
-    mb_cfg = settings.mailbox
-
+    """Inicjalizuje linie GPIO przy starcie aplikacji."""
     with _gpio_lock:
-        if _gpio_request is not None:
-            return
-
-        line_config = {
-            cfg.line_button: gpiod.LineSettings(
-                direction=Direction.INPUT,
-                bias=Bias.PULL_UP,
-                active_low=True
-            ),
-            cfg.line_led_red: gpiod.LineSettings(
-                direction=Direction.OUTPUT,
-                active_low=True,
-                output_value=Value.INACTIVE
-            ),
-            cfg.line_led_blue: gpiod.LineSettings(
-                direction=Direction.OUTPUT,
-                active_low=True,
-                output_value=Value.INACTIVE
-            ),
-            cfg.line_gate: gpiod.LineSettings(
-                direction=Direction.OUTPUT,
-                output_value=Value.INACTIVE
-            ),
-            cfg.line_buzzer: gpiod.LineSettings(
-                direction=Direction.OUTPUT,
-                active_low=cfg.buzzer_active_low,
-                output_value=Value.INACTIVE
-            ),
-        }
-
-        # Jeśli dioda zielona ma osobny pin (inny niż przekaźnik bramy)
-        if cfg.line_led_green is not None and cfg.line_led_green != cfg.line_gate:
-            line_config[cast(int, cfg.line_led_green)] = gpiod.LineSettings(
-                direction=Direction.OUTPUT,
-                active_low=True,
-                output_value=Value.INACTIVE
-            )
-
-        # Inicjalizacja pinów skrzynki, tylko jeśli moduł jest włączony
-        if mb_cfg.enabled:
-            line_config[mb_cfg.line_sensor] = gpiod.LineSettings(
-                direction=Direction.INPUT,
-                bias=Bias.PULL_UP,
-                active_low=mb_cfg.sensor_active_low
-            )
-            line_config[mb_cfg.line_led] = gpiod.LineSettings(
-                direction=Direction.OUTPUT,
-                active_low=mb_cfg.led_active_low,
-                output_value=Value.INACTIVE
-            )
-
-        _gpio_request = gpiod.request_lines(
-            cfg.chip_path,
-            consumer=cfg.consumer_name,
-            config=line_config
-        )
-        logger.info(
-            f"Zainicjalizowano GPIO ({cfg.chip_path}), "
-            f"moduł skrzynki: {'AKTYWNY' if mb_cfg.enabled else 'WYŁĄCZONY'}."
-        )
-
-
-def _set_line(line: Optional[int], active: bool) -> None:
-    """Wewnętrzna funkcja pomocnicza ustawiająca stan pojedynczej linii."""
-    if line is None or _gpio_request is None:
-        return
-    _gpio_request.set_value(line, Value.ACTIVE if active else Value.INACTIVE)
+        if _gpio_request is None:
+            _open_gpio_lines_unlocked(config_manager.settings)
 
 
 def cleanup_gpio() -> None:
-    """Zwalnia zarezerwowane linie GPIO i wyłącza wyjścia."""
-    global _gpio_request
-    cfg = settings.gpio
-    mb_cfg = settings.mailbox
-
+    """Zwalnia zasoby GPIO przy zamykaniu programu."""
+    global _feedback_timer
     with _gpio_lock:
-        if _gpio_request is not None:
-            try:
-                _set_line(cfg.line_gate, False)
-                _set_line(cfg.line_led_green, False)
-                _set_line(cfg.line_led_red, False)
-                _set_line(cfg.line_led_blue, False)
-                _set_line(cfg.line_buzzer, False)
-                if mb_cfg.enabled:
-                    _set_line(mb_cfg.line_led, False)
-                _gpio_request.release()
-            except Exception as err:
-                logger.error(f"Błąd podczas zwalniania GPIO: {err}")
-            finally:
-                _gpio_request = None
+        if _feedback_timer is not None:
+            _feedback_timer.cancel()
+            _feedback_timer = None
+        _release_gpio_unlocked(config_manager.settings)
+
+
+def handle_gpio_config_reload(old_cfg: GateAppConfig, new_cfg: GateAppConfig) -> None:
+    """
+    Callback dla HotReloadGateConfigManager.
+    Przeładowuje linie w kernelu, jeśli zmieniły się numery pinów, polaryzacja active_low
+    lub konfiguracja sprzętowa skrzynki na listy.
+    """
+    gpio_changed = old_cfg.gpio != new_cfg.gpio
+    mailbox_hw_changed = (
+        old_cfg.mailbox.enabled != new_cfg.mailbox.enabled
+        or old_cfg.mailbox.sensor != new_cfg.mailbox.sensor
+        or old_cfg.mailbox.led != new_cfg.mailbox.led
+    )
+    if not (gpio_changed or mailbox_hw_changed):
+        return
+
+    global _blue_led_override, _feedback_timer
+    logger.info("Wykryto zmianę konfiguracji GPIO – ponowna inicjalizacja linii...")
+    with _gpio_lock:
+        if _feedback_timer is not None:
+            _feedback_timer.cancel()
+            _feedback_timer = None
+        _blue_led_override = False
+        _release_gpio_unlocked(old_cfg)
+        _open_gpio_lines_unlocked(new_cfg)
 
 
 # =====================================================================
@@ -136,151 +168,126 @@ def cleanup_gpio() -> None:
 # =====================================================================
 
 def update_normal_blue_blink(should_turn_on: bool) -> None:
-    """
-    Wywoływane z pętli głównej do mrugania niebieską diodą w stanie normalnym.
-    Jeśli trwa obsługa karty RFID (_blue_led_override == True), mruganie jest ignorowane.
-    """
+    """Mruga diodą niebieską w stanie czuwania (chyba że trwa obsługa RFID/otwarcia)."""
     with _gpio_lock:
         if not _blue_led_override:
-            _set_line(settings.gpio.line_led_blue, should_turn_on)
+            _set_line_unlocked(config_manager.settings.gpio.led_blue, should_turn_on)
 
 
 def set_rfid_waiting_state() -> None:
-    """
-    Wywoływane w momencie przyłożenia karty RFID:
-    Dioda niebieska przechodzi w stan ciągłego świecenia w oczekiwaniu na odpowiedź serwera.
-    """
+    """Zapala ciągle diodę niebieską podczas oczekiwania na odpowiedź serwera RFID."""
     global _blue_led_override, _feedback_timer
+    gpio_cfg = config_manager.settings.gpio
     with _gpio_lock:
         if _feedback_timer is not None:
             _feedback_timer.cancel()
         _blue_led_override = True
-        _set_line(settings.gpio.line_led_blue, True)
-        _set_line(settings.gpio.line_led_red, False)
-        _set_line(settings.gpio.line_led_green, False)
+        _set_line_unlocked(gpio_cfg.led_blue, True)
+        _set_line_unlocked(gpio_cfg.led_red, False)
+        _set_line_unlocked(gpio_cfg.led_green, False)
 
 
 def _reset_after_feedback() -> None:
-    """
-    Callback po 5 sekundach od autoryzacji/odrzucenia:
-    Wyłącza diody wynikowe (zieloną/czerwoną), wyłącza brzęczyk, zamyka bramę,
-    gasi diodę niebieską i przywraca ją do trybu normalnego mrugania.
-    """
+    """Po upływie czasu otwarcia/sygnalizacji gasi wszystkie wyjścia i wznawia mruganie niebieskiej."""
     global _blue_led_override
-    cfg = settings.gpio
+    gpio_cfg = config_manager.settings.gpio
     with _gpio_lock:
-        _set_line(cfg.line_gate, False)
-        _set_line(cfg.line_led_green, False)
-        _set_line(cfg.line_led_red, False)
-        _set_line(cfg.line_buzzer, False)
-        _set_line(cfg.line_led_blue, False)
+        _set_line_unlocked(gpio_cfg.gate, False)
+        _set_line_unlocked(gpio_cfg.led_green, False)
+        _set_line_unlocked(gpio_cfg.led_red, False)
+        _set_line_unlocked(gpio_cfg.buzzer, False)
+        _set_line_unlocked(gpio_cfg.led_blue, False)
         _blue_led_override = False
 
 
 def open_gate() -> None:
-    """
-    Otwiera bramę (np. z aplikacji mobilnej lub kodem DTMF) na 5 sekund.
-    Włącza przekaźnik bramy i diodę zieloną, po czym przywraca stan normalny.
-    """
+    """Otwiera bramę (z aplikacji/DTMF) i uruchamia timer powrotu do stanu normalnego."""
     global _blue_led_override, _feedback_timer
-    cfg = settings.gpio
+    cfg = config_manager.settings
     with _gpio_lock:
         if _feedback_timer is not None:
             _feedback_timer.cancel()
         _blue_led_override = True
-        _set_line(cfg.line_gate, True)
-        _set_line(cfg.line_led_green, True)
-        _set_line(cfg.line_led_blue, True)
+        _set_line_unlocked(cfg.gpio.gate, True)
+        _set_line_unlocked(cfg.gpio.led_green, True)
+        _set_line_unlocked(cfg.gpio.led_blue, True)
 
-        _feedback_timer = threading.Timer(settings.gate_hold_time_sec, _reset_after_feedback)
+        _feedback_timer = threading.Timer(cfg.gate_hold_time_sec, _reset_after_feedback)
         _feedback_timer.daemon = True
         # noinspection unresolved-references
         _feedback_timer.start()
 
 
 def signal_rfid_accepted() -> None:
-    """
-    Poprawna karta RFID:
-      - Niebieska dioda świeci dalej,
-      - Włącza się zielona dioda, przekaźnik bramy oraz ciągły brzęczyk na 5 sekund,
-      - Po 5 sekundach obie diody i brzęczyk gasną, a niebieska wraca do mrugania.
-    """
+    """Poprawna karta RFID: świeci niebieska + zielona, otwiera bramę i włącza brzęczyk na 5s."""
     global _blue_led_override, _feedback_timer
-    cfg = settings.gpio
-    hold_time = settings.gate_hold_time_sec
-
+    cfg = config_manager.settings
     with _gpio_lock:
         if _feedback_timer is not None:
             _feedback_timer.cancel()
         _blue_led_override = True
-        _set_line(cfg.line_led_blue, True)
-        _set_line(cfg.line_led_green, True)
-        _set_line(cfg.line_gate, True)
-        _set_line(cfg.line_buzzer, True)
+        _set_line_unlocked(cfg.gpio.led_blue, True)
+        _set_line_unlocked(cfg.gpio.led_green, True)
+        _set_line_unlocked(cfg.gpio.gate, True)
+        _set_line_unlocked(cfg.gpio.buzzer, True)
 
-        _feedback_timer = threading.Timer(hold_time, _reset_after_feedback)
+        _feedback_timer = threading.Timer(cfg.gate_hold_time_sec, _reset_after_feedback)
         _feedback_timer.daemon = True
         # noinspection unresolved-references
         _feedback_timer.start()
 
-    play_audio(settings.sounds.silence)
-    play_audio(settings.sounds.confirm)
+    play_audio(cfg.sounds.silence)
+    play_audio(cfg.sounds.confirm)
     time.sleep(0.3)
-    play_audio(settings.sounds.gate_open)
+    play_audio(cfg.sounds.gate_open)
 
 
 def _beep_three_times() -> None:
-    """Zadanie w tle generujące 3 krótkie sygnały brzęczyka przy złej karcie."""
-    buzzer_pin = settings.gpio.line_buzzer
+    """Generuje 3 krótkie sygnały na brzęczyku."""
     for _ in range(3):
         with _gpio_lock:
-            _set_line(buzzer_pin, True)
+            _set_line_unlocked(config_manager.settings.gpio.buzzer, True)
         time.sleep(0.15)
         with _gpio_lock:
-            _set_line(buzzer_pin, False)
+            _set_line_unlocked(config_manager.settings.gpio.buzzer, False)
         time.sleep(0.15)
 
 
 def signal_rfid_rejected() -> None:
-    """
-    Nieprawidłowa karta RFID:
-      - Niebieska dioda świeci dalej,
-      - Włącza się czerwona dioda na 5 sekund,
-      - Brzęczyk wydaje 3 krótkie sygnały,
-      - Po 5 sekundach obie diody gasną, a niebieska wraca do mrugania.
-    """
+    """Nieprawidłowa karta RFID: świeci niebieska + czerwona przez 5s oraz 3 krótkie sygnały brzęczyka."""
     global _blue_led_override, _feedback_timer
-    cfg = settings.gpio
-    hold_time = settings.gate_hold_time_sec
-
+    cfg = config_manager.settings
     with _gpio_lock:
         if _feedback_timer is not None:
             _feedback_timer.cancel()
         _blue_led_override = True
-        _set_line(cfg.line_led_blue, True)
-        _set_line(cfg.line_led_red, True)
+        _set_line_unlocked(cfg.gpio.led_blue, True)
+        _set_line_unlocked(cfg.gpio.led_red, True)
 
-        _feedback_timer = threading.Timer(hold_time, _reset_after_feedback)
+        _feedback_timer = threading.Timer(cfg.gate_hold_time_sec, _reset_after_feedback)
         _feedback_timer.daemon = True
         # noinspection unresolved-references
         _feedback_timer.start()
 
-    threading.Thread(target=_beep_three_times, daemon=True).start()
-    play_audio(settings.sounds.silence)
-    play_audio(settings.sounds.reject)
+    if cfg.gpio.buzzer is not None:
+        threading.Thread(target=_beep_three_times, daemon=True).start()
+
+    play_audio(cfg.sounds.silence)
+    play_audio(cfg.sounds.reject)
 
 
 # =====================================================================
-# Odczyt przycisku dzwonka, skrzynki na listy oraz audio
+# Odczyt wejść i odtwarzanie audio
 # =====================================================================
 
 def read_button_state() -> str:
-    """Zwraca '1' gdy przycisk dzwonka jest wciśnięty, '0' gdy zwolniony."""
+    """Zwraca '1' gdy przycisk jest wciśnięty, '0' gdy zwolniony."""
     with _gpio_lock:
-        if not _gpio_request:
+        if _gpio_request is None:
             return "0"
         try:
-            val = _gpio_request.get_value(settings.gpio.line_button)
+            # noinspection unresolved-references
+            val = _gpio_request.get_value(config_manager.settings.gpio.button.line)
             return "1" if val == Value.ACTIVE else "0"
         except Exception as err:
             logger.error(f"Błąd odczytu przycisku dzwonka: {err}")
@@ -288,17 +295,16 @@ def read_button_state() -> str:
 
 
 def read_mailbox_sensor() -> bool:
-    """
-    Odczytuje stan czujnika skrzynki na listy.
-    Zwraca True, jeśli w skrzynce wykryto korespondencję (Value.ACTIVE).
-    """
-    if not settings.mailbox.enabled:
+    """Zwraca True, gdy czujnik skrzynki wykrywa obecność listów."""
+    mb_cfg = config_manager.settings.mailbox
+    if not mb_cfg.enabled:
         return False
     with _gpio_lock:
-        if not _gpio_request:
+        if _gpio_request is None:
             return False
         try:
-            val = _gpio_request.get_value(settings.mailbox.line_sensor)
+            # noinspection unresolved-references
+            val = _gpio_request.get_value(mb_cfg.sensor.line)
             return val == Value.ACTIVE
         except Exception as err:
             logger.error(f"Błąd odczytu czujnika skrzynki: {err}")
@@ -306,15 +312,16 @@ def read_mailbox_sensor() -> bool:
 
 
 def set_mailbox_led(has_mail: bool) -> None:
-    """Włącza lub gasi dedykowaną diodę powiadomienia o listach w skrzynce."""
-    if not settings.mailbox.enabled:
+    """Steruje diodą powiadomienia o listach w skrzynce."""
+    mb_cfg = config_manager.settings.mailbox
+    if not mb_cfg.enabled:
         return
     with _gpio_lock:
-        _set_line(settings.mailbox.line_led, has_mail)
+        _set_line_unlocked(mb_cfg.led, has_mail)
 
 
 def play_audio(sound_file: str) -> None:
-    """Odtwarza plik WAV w tle bez blokowania wątku."""
+    """Odtwarza plik WAV w tle (nieblokująco)."""
     try:
         subprocess.Popen(
             ["/usr/bin/aplay", "-q", sound_file],

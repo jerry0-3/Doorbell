@@ -9,7 +9,7 @@ from typing import Any, Dict, List, Optional
 
 import requests
 
-from config import settings
+from config import config_manager
 from token_store import register_token
 
 logger = logging.getLogger("vbram_log")
@@ -37,7 +37,7 @@ def send_notification(
 
     try:
         response = requests.post(
-            settings.notification.broker_url,
+            config_manager.settings.notification.broker_url,
             json=payload,
             timeout=2.5
         )
@@ -54,9 +54,9 @@ def send_doorbell_notification() -> bool:
     token = str(uuid.uuid4())[:8]
     register_token(token)
 
-    srv_ip = settings.http_server.ip
-    srv_port = settings.http_server.port
-    notif_cfg = settings.notification
+    srv_ip = config_manager.settings.http_server.ip
+    srv_port = config_manager.settings.http_server.port
+    notif_cfg = config_manager.settings.notification
 
     # noinspection HttpUrlsUsage
     callback_url = f"http://{srv_ip}:{srv_port}/decision?token={token}"
@@ -100,7 +100,7 @@ def send_doorbell_notification() -> bool:
 
 def send_mailbox_notification() -> bool:
     """Wysyła bezakcyjne powiadomienie o wykryciu nowych listów w skrzynce."""
-    mb_cfg = settings.mailbox
+    mb_cfg = config_manager.settings.mailbox
     return send_notification(
         topic=mb_cfg.topic,
         title=mb_cfg.title,

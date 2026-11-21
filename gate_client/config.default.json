@@ -20,11 +20,28 @@
   "gpio": {
     "chip_path": "/dev/gpiochip1",
     "consumer_name": "gregbl0",
-    "line_button": 13,
-    "line_led_red": 14,
-    "line_led_blue": 15,
-    "line_gate": 16,
-    "line_led_green": 17,
+    "button": {
+      "line": 13,
+      "active_low": true,
+      "bias": "pull_up"
+    },
+    "led_red": {
+      "line": 14,
+      "active_low": true
+    },
+    "led_blue": {
+      "line": 15,
+      "active_low": true
+    },
+    "gate": {
+      "line": 16,
+      "active_low": false
+    },
+    "led_green": null,
+    "buzzer": {
+      "line": 18,
+      "active_low": false
+    },
     "line_buzzer": 18,
     "buzzer_active_low": false
   },
@@ -46,10 +63,15 @@
   },
   "mailbox": {
     "enabled": false,
-    "line_sensor": 19,
-    "line_led": 20,
-    "sensor_active_low": true,
-    "led_active_low": true,
+    "sensor": {
+      "line": 19,
+      "active_low": true,
+      "bias": "pull_up"
+    },
+    "led": {
+      "line": 20,
+      "active_low": true
+    },
     "debounce_sec": 2.0,
     "topic": "mailbox_alerts",
     "priority": 3,

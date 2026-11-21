@@ -15,7 +15,7 @@ import time
 from collections import deque
 
 # noinspection unused-imports
-from config import settings
+from config import config_manager
 from hardware import (
     open_gate,
     play_audio,
@@ -165,6 +165,8 @@ def run_doorbell_controller(log_file_handle) -> None:
     set_linphone_mute(False)
 
     while True:
+        config_manager.check_and_reload()
+
         current_button_state = read_button_state()
 
         # Detekcja stabilnego wciśnięcia przycisku dzwonka (stan wysoki)
@@ -189,13 +191,13 @@ def run_doorbell_controller(log_file_handle) -> None:
             clear_dtmf_buffer()
             if not is_linphone_on_hook():
                 logger.info("Odebrano poprawny kod DTMF podczas rozmowy. Otwieranie bramy...")
-                play_audio(settings.sounds.silence)
-                play_audio(settings.sounds.confirm)
+                play_audio(config_manager.settings.sounds.silence)
+                play_audio(config_manager.settings.sounds.confirm)
 
                 set_linphone_mute(True)
                 open_gate()
-                play_audio(settings.sounds.silence)
-                play_audio(settings.sounds.gate_open)
+                play_audio(config_manager.settings.sounds.silence)
+                play_audio(config_manager.settings.sounds.gate_open)
                 set_linphone_mute(False)
             else:
                 logger.warning("Wykryto kod DTMF, ale brak aktywnej sesji SIP (on-hook).")

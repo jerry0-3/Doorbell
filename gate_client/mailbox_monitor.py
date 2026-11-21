@@ -7,7 +7,7 @@ i wysyła powiadomienie. Po opróżnieniu skrzynki gasi diodę.
 import logging
 import time
 
-from config import settings
+from config import config_manager
 from hardware import read_mailbox_sensor, set_mailbox_led
 from notifier import send_mailbox_notification
 
@@ -19,7 +19,7 @@ def run_mailbox_monitor_loop() -> None:
     Pętla wątku monitorującego czujnik skrzynki na listy.
     Jeśli moduł jest wyłączony w konfiguracji, wątek natychmiast kończy pracę.
     """
-    mb_cfg = settings.mailbox
+    mb_cfg = config_manager.settings.mailbox
     if not mb_cfg.enabled:
         logger.info("Moduł skrzynki na listy jest wyłączony – pomijanie wątku.")
         return

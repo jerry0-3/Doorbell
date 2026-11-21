@@ -18,7 +18,7 @@ from common.crypto import (
     ENCRYPTED_PACKET_SIZE,
     parse_and_validate_frame
 )
-from config import settings
+from config import config_manager
 from hardware import (
     set_rfid_waiting_state,
     signal_rfid_accepted,
@@ -56,7 +56,7 @@ def extract_tag_from_frame(raw_frame: bytes) -> Optional[str]:
 
 def verify_tag_with_server(tag_hex: str, cipher: AESCipher) -> bool:
     """Wysyła zaszyfrowane zapytanie z numerem karty do serwera i sprawdza werdykt."""
-    rfid_cfg = settings.rfid
+    rfid_cfg = config_manager.settings.rfid
     seed_hex = f"{secrets.randbits(24):08X}"
     timestamp_str = datetime.now().strftime("%Y%m%d%H%M%S")
 
@@ -101,7 +101,7 @@ def verify_tag_with_server(tag_hex: str, cipher: AESCipher) -> bool:
 
 def run_rfid_reader_loop() -> None:
     """Pętla główna wątku czytnika kart RFID."""
-    rfid_cfg = settings.rfid
+    rfid_cfg = config_manager.settings.rfid
     if not rfid_cfg.enabled:
         logger.info("Moduł czytnika RFID jest wyłączony w konfiguracji.")
         return
@@ -132,10 +132,18 @@ def run_rfid_reader_loop() -> None:
 
                     if tag_hex:
                         logger.info(f"Odczytano kartę RFID: {tag_hex}")
+
+                        if tag_hex == last_tag_hex and (time.monotonic() - last_tag_time) < 2.0:
+                            ser.reset_input_buffer()
+                            continue
+                        last_tag_hex = tag_hex
+                        last_tag_time = time.monotonic()
+
                         # 1. Dioda niebieska przechodzi w stan ciągłego świecenia
                         set_rfid_waiting_state()
 
                         # 2. Odpytanie serwera i odpowiednia sygnalizacja (5s)
+                        # noinspection bad-argument-type
                         if verify_tag_with_server(tag_hex, cipher):
                             logger.info(f"Karta {tag_hex} zaakceptowana. Otwieranie bramy.")
                             set_linphone_mute(True)

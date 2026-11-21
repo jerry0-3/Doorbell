@@ -16,8 +16,8 @@ import threading
 
 import psutil
 
-from config import settings
-from hardware import cleanup_gpio, init_gpio
+from config import config_manager
+from hardware import cleanup_gpio, init_gpio, handle_gpio_config_reload
 from lin_phone import run_doorbell_controller
 from rfid_reader import run_rfid_reader_loop
 from mailbox_monitor import run_mailbox_monitor_loop
@@ -25,7 +25,7 @@ from server import run_http_server
 
 logging.basicConfig(
     format="%(asctime)-15s %(levelname)s: %(message)s",
-    filename=settings.app_log_path,
+    filename=config_manager.settings.app_log_path,
     level=logging.INFO
 )
 logger = logging.getLogger("vbram_log")
@@ -50,7 +50,9 @@ def cleanup() -> None:
     """Zwalnia linie GPIO i zamyka plik logów przy wyjściu."""
     logger.info("Zamykanie systemu bramy - zwalnianie zasobów...")
     cleanup_gpio()
+    # noinspection unresolved-references
     if log_file_handle and not log_file_handle.closed:
+        # noinspection unreachable-code
         log_file_handle.close()
     logging.shutdown()
 
@@ -72,12 +74,13 @@ def main() -> None:
     signal.signal(signal.SIGTERM, signal_handler)
 
     init_gpio()
+    config_manager.register_reload_callback(handle_gpio_config_reload)
 
-    if not os.path.isfile(settings.sip.linphone_log_path):
-        logger.error(f"Brak pliku logu Linphone: {settings.sip.linphone_log_path}")
+    if not os.path.isfile(config_manager.settings.sip.linphone_log_path):
+        logger.error(f"Brak pliku logu Linphone: {config_manager.settings.sip.linphone_log_path}")
         sys.exit(1)
 
-    log_file_handle = open(settings.sip.linphone_log_path, "r")
+    log_file_handle = open(config_manager.settings.sip.linphone_log_path, "r")
     log_file_handle.seek(0, os.SEEK_END)
 
     # 1. Wątek serwera HTTP (decyzje z powiadomień i aplikacji)
