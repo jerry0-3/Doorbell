@@ -5,7 +5,7 @@ Moduł serwera HTTP Flask do odbierania autoryzowanych decyzji z powiadomień.
 import logging
 from flask import Flask, jsonify, request
 from config import config_manager
-from hardware import open_gate
+from hardware import cancel_doorbell_waiting, open_gate, play_audio_sequence
 from lin_phone import dial_sip_number, is_linphone_on_hook
 from token_store import consume_token, validate_token
 
@@ -62,13 +62,16 @@ def receive_decision():
         return jsonify({"status": "error", "message": "Token wygasł lub został już wykorzystany"}), 403
 
     if action == 'start':
-        logger.info("Otwieranie bramy...")
+        logger.info("Token zaakceptowany. Otwieranie bramy...")
+        # cfg = config_manager.settings
         open_gate()
+        # play_audio_sequence(cfg.sounds.silence, cfg.sounds.confirm, cfg.sounds.gate_open)
         return jsonify({"status": "ok", "message": "Brama została otwarta"}), 200
 
     elif action == 'stop':
-        logger.info("Zgłoszenie anulowane/zamknięte przez użytkownika.")
-        return jsonify({"status": "ok", "message": "Anulowano"}), 200
+        logger.info("Token unieważniony. Akcja odrzucona przez użytkownika.")
+        cancel_doorbell_waiting()
+        return jsonify({"status": "ok", "message": "Akcja anulowana"}), 200
 
     return jsonify({"status": "ignored", "message": "Nieznana akcja"}), 400
 

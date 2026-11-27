@@ -1,6 +1,7 @@
 {
   "app_log_path": "/var/log/gregac/vbram_log",
   "gate_hold_time_sec": 5.0,
+  "doorbell_feedback_sec": 20.0,
   "token_ttl_seconds": 300.0,
   "http_server": {
     "ip": "10.47.34.126",
@@ -47,7 +48,8 @@
     "silence": "/home/greg/Brama/cisza.wav",
     "confirm": "/home/greg/Brama/pi-pi4.5p.wav",
     "reject": "/home/greg/Brama/tuu700-550p.wav",
-    "gate_open": "/home/greg/Brama/BramaOtw.wav"
+    "gate_open": "/home/greg/Brama/BramaOtw.wav",
+    "doorbell": "/home/greg/Brama/pi-pi4.5p.wav"
   },
   "rfid": {
     "enabled": true,

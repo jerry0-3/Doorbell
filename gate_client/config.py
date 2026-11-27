@@ -62,6 +62,8 @@ class SoundsConfig(BaseModel):
     confirm: str
     reject: str
     gate_open: str
+    # Opcjonalny plik WAV dla dzwonka; jeśli None, użyty zostanie dźwięk 'confirm'
+    doorbell: Optional[str] = None
 
 
 class RfidConfig(BaseModel):
@@ -89,6 +91,7 @@ class MailboxConfig(BaseModel):
 class GateAppConfig(BaseModel):
     app_log_path: str
     gate_hold_time_sec: float = Field(gt=0.0)
+    doorbell_feedback_sec: float = Field(default=20.0, gt=0.0)
     token_ttl_seconds: float = Field(gt=0.0)
     http_server: HttpServerConfig
     notification: NotificationConfig
@@ -118,6 +121,7 @@ class GateAppConfig(BaseModel):
         for name, pin_cfg in candidates:
             if pin_cfg is None:
                 continue
+            # noinspection unresolved-references
             line_num = pin_cfg.line
             if line_num in assigned:
                 raise ValueError(

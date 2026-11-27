@@ -20,7 +20,9 @@ from hardware import (
     open_gate,
     play_audio_sequence,
     read_button_state,
-    update_normal_blue_blink
+    signal_doorbell_failed,
+    signal_doorbell_pressed,
+    update_status_led
 )
 from notifier import send_doorbell_notification
 
@@ -173,12 +175,13 @@ def run_doorbell_controller(log_file_handle) -> None:
         if current_button_state == '1' and previous_button_state == '1':
             if not is_button_latched:
                 logger.info("Fizyczny przycisk dzwonka wciśnięty.")
-                notification_sent = send_doorbell_notification()
+                if send_doorbell_notification():
+                    signal_doorbell_pressed()
+                else:
+                    signal_doorbell_failed()
 
-                # Zatrzaskujemy stan, tylko jeśli powiadomienie przeszło,
-                # aby w razie błędu sieci ponowić próbę przy kolejnym cyklu
-                if notification_sent:
-                    is_button_latched = True
+                # Zatrzaskujemy przycisk do momentu puszczenia, aby uniknąć spamu
+                is_button_latched = True
 
         # Zwolnienie przycisku (stan niski) – resetujemy zatrzask
         elif current_button_state == '0' and previous_button_state == '0':
@@ -191,11 +194,11 @@ def run_doorbell_controller(log_file_handle) -> None:
             clear_dtmf_buffer()
             if not is_linphone_on_hook():
                 logger.info("Odebrano poprawny kod DTMF podczas rozmowy. Otwieranie bramy...")
-                play_audio_sequence(config_manager.settings.sounds.silence, config_manager.settings.sounds.confirm)
+                # play_audio_sequence(config_manager.settings.sounds.silence, config_manager.settings.sounds.confirm)
 
                 set_linphone_mute(True)
                 open_gate()
-                play_audio_sequence(config_manager.settings.sounds.silence, config_manager.settings.sounds.gate_open)
+                # play_audio_sequence(config_manager.settings.sounds.silence, config_manager.settings.sounds.gate_open)
                 set_linphone_mute(False)
             else:
                 logger.warning("Wykryto kod DTMF, ale brak aktywnej sesji SIP (on-hook).")
@@ -205,7 +208,7 @@ def run_doorbell_controller(log_file_handle) -> None:
             time.sleep(0.015)
         last_loop_time = time.time()
 
-        # Dioda kontrolna LED — krótkie mignięcie co sekundę
-        update_normal_blue_blink((last_loop_time - int(last_loop_time)) < 0.07)
+        # Obsługa diody niebieskiej (wolne czuwanie lub szybkie miganie po dzwonku)
+        update_status_led(last_loop_time)
 
         previous_button_state = current_button_state
