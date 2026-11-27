@@ -225,17 +225,17 @@ def handle_gpio_config_reload(old_cfg: GateAppConfig, new_cfg: GateAppConfig) ->
 def update_status_led(now: float) -> None:
     """
     Aktualizuje stan diody niebieskiej w zależności od bieżącego trybu pracy:
-      - NORMAL: krótkie mignięcie (70 ms) co 1 sekundę,
-      - DOORBELL_WAITING: szybkie miganie 2 Hz (250 ms ON / 250 ms OFF),
+      - NORMAL: mignięcie (150 ms) co 1,5 sekundy,
+      - DOORBELL_WAITING: szybkie miganie 10 Hz (50 ms ON / 50 ms OFF),
       - OVERRIDE: diodą steruje aktywne zdarzenie (RFID lub otwieranie bramy).
     """
     with _state.gpio_lock:
         if _state.led_mode is LedMode.OVERRIDE:
             return
         if _state.led_mode is LedMode.DOORBELL_WAITING:
-            should_turn_on = (int(now * 4) % 2) == 0
+            should_turn_on = (int(now * 20) % 2) == 0
         else:
-            should_turn_on = (now - int(now)) < 0.07
+            should_turn_on = (now % 1.5) < 0.15
 
         _set_line_unlocked(config_manager.settings.gpio.led_blue, should_turn_on)
 
