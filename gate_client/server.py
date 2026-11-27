@@ -37,6 +37,7 @@ def receive_decision():
             logger.warning(f"Odrzucono call: token '{incoming_token}' jest nieprawidłowy lub wygasł.")
             return jsonify({"status": "error", "message": "Token wygasł"}), 403
 
+        cancel_doorbell_waiting()
         # Pobieramy docelowy numer SIP z body zapytania
         target_number = body.get('number')
         if target_number:
